@@ -1516,12 +1516,10 @@ input:focus,select:focus{border-color:var(--gold);}
       </div>
     </div>
 
-    <div style="font-size:0.7rem;color:var(--text3);text-align:center;margin-top:12px;">* الأسعار التقريبية تُحدَّث فور فتح التطبيق وكل 5 دقائق</div>
   </div>
 </div>
 
-    <div style="font-size:0.7rem;color:var(--text3);text-align:center;margin-top:12px;">* الأسعار التقريبية تُحدَّث فور فتح التطبيق وكل 5 دقائق</div>
-  </div>
+</div>
 </div>
 
 <!-- ========== AGE CALCULATOR PAGE ========== -->
@@ -2662,6 +2660,11 @@ async function tapAthkar(type,i){
       btn.classList.add('done');
       const tapBtn = btn.querySelector('.btn-tap');
       if(tapBtn){ tapBtn.textContent='✅ مكتمل'; tapBtn.disabled=true; tapBtn.classList.add('done-btn'); }
+      vibrateComplete();
+      // Auto-scroll to next incomplete dhikr after short delay
+      setTimeout(()=>{ scrollToNextDhikr(type, i, data); }, 700);
+    } else {
+      vibrateLight();
     }
   }
   updateAthkarProgress();
@@ -2682,6 +2685,65 @@ async function resetAllAthkar(){
   await dbSet('athkar','masa',{});
   renderAthkar('sabah'); renderAthkar('masa'); updateAthkarProgress();
 }
+function scrollToNextDhikr(type, doneIdx, data){
+  // Find the next incomplete dhikr
+  let nextIdx = -1;
+  for(let j = doneIdx+1; j < data.length; j++){
+    if((athkarState[type][j]||0) < data[j].count){
+      nextIdx = j; break;
+    }
+  }
+  if(nextIdx === -1){
+    // All done — show a quick toast
+    showAthkarAllDone();
+    return;
+  }
+  const nextEl = document.getElementById('cnt-'+type+'-'+nextIdx);
+  if(!nextEl) return;
+  const nextItem = nextEl.closest('.dhikr-item');
+  if(!nextItem) return;
+  // Smooth scroll
+  nextItem.scrollIntoView({ behavior:'smooth', block:'center' });
+  // Briefly highlight the next item
+  nextItem.style.transition='box-shadow 0.3s, border-color 0.3s';
+  nextItem.style.boxShadow='0 0 0 3px var(--gold)';
+  nextItem.style.borderColor='var(--gold)';
+  setTimeout(()=>{
+    nextItem.style.boxShadow='';
+    nextItem.style.borderColor='';
+  }, 1400);
+}
+
+function showAthkarAllDone(){
+  // Don't show more than once
+  if(document.getElementById('athkar-all-done-toast')) return;
+  const toast = document.createElement('div');
+  toast.id='athkar-all-done-toast';
+  toast.style.cssText=`
+    position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+    background:linear-gradient(135deg,var(--green3),var(--green2));
+    color:#fff;padding:14px 24px;border-radius:16px;
+    font-family:var(--font-ar);font-size:1rem;font-weight:700;
+    z-index:9999;text-align:center;
+    box-shadow:0 4px 24px rgba(0,0,0,0.4);
+    animation:toastIn 0.4s ease;
+  `;
+  toast.innerHTML='🌟 أحسنت! اكتملت جميع الأذكار';
+  if(!document.getElementById('toast-anim-style')){
+    const s=document.createElement('style');
+    s.id='toast-anim-style';
+    s.textContent='@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    document.head.appendChild(s);
+  }
+  document.body.appendChild(toast);
+  vibrate([100,60,100,60,200]);
+  setTimeout(()=>{
+    toast.style.transition='opacity 0.5s';
+    toast.style.opacity='0';
+    setTimeout(()=>toast.remove(), 500);
+  }, 3000);
+}
+
 function updateAthkarProgress(){
   let done=0,total=0;
   SABAH.forEach((d,i)=>{done+=(athkarState.sabah[i]||0)>=d.count?1:0;total++;});
@@ -2759,6 +2821,18 @@ function closeTafsir(){
 
 // Close tafsir on back button / swipe
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeTafsir(); });
+// ===== VIBRATION HELPER =====
+function vibrate(pattern){
+  try{ if(navigator.vibrate) navigator.vibrate(pattern); }
+  catch(e){}
+}
+// Short tap feedback
+function vibrateLight(){ vibrate(30); }
+// On every 100 in tasbih
+function vibrateMilestone(){ vibrate([60,40,60]); }
+// On dhikr/dua complete
+function vibrateComplete(){ vibrate([80,50,80,50,120]); }
+
 const TASBIH_NAMES=['سبحان الله','الحمد لله','الله أكبر','لا إله إلا الله'];
 let tasbihIdx=0, tasbihSession=0;
 let tasbihData={totals:[0,0,0,0],today:[0,0,0,0],lastDate:''};
@@ -2784,6 +2858,12 @@ async function tapTasbih(e){
   tasbihData.totals[tasbihIdx]++;
   tasbihData.today[tasbihIdx]++;
   tasbihSession++;
+  // Vibrate every 100 counts
+  if(tasbihData.totals[tasbihIdx] % 100 === 0){
+    vibrateMilestone();
+  } else {
+    vibrateLight();
+  }
   // Update display immediately (don't wait for DB)
   updateTasbihUI();
   // Save async in background
@@ -4576,6 +4656,7 @@ const RECITERS = [
   {id:'ar.mahermuaiqly',  name:'ماهر المعيقلي',          style:'مرتّل — حفص',    emoji:'✨', server:'everyayah', subdir:'MaherAlMuaiqly128kbps'},
   {id:'ar.saoodshuraym',  name:'سعود الشريم',             style:'مرتّل — حفص',    emoji:'🎙️', server:'everyayah', subdir:'Saood_ash-Shuraym_128kbps'},
   {id:'ar.minshawi',      name:'محمد صديق المنشاوي',     style:'مجوّد',          emoji:'📿', server:'everyayah', subdir:'Menshawi_16kbps'},
+  {id:'ar.minshawi_mu',   name:'المنشاوي — مرتّل',       style:'مرتّل — حفص',    emoji:'📿', server:'mp3quran',  id2:'minshawi'},
   {id:'ar.husary',        name:'محمود خليل الحصري',       style:'مجوّد — حفص',    emoji:'📖', server:'everyayah', subdir:'Husary_128kbps'},
   {id:'ar.abdulbasitmurattal', name:'عبد الباسط عبد الصمد — مرتّل', style:'مرتّل — حفص', emoji:'🌸', server:'everyayah', subdir:'Abdul_Basit_Murattal_192kbps'},
   {id:'ar.abdulbasitmujawwad', name:'عبد الباسط عبد الصمد — مجوّد', style:'مجوّد — حفص', emoji:'💫', server:'everyayah', subdir:'Abdul_Basit_Mujawwad_128kbps'},
@@ -4587,7 +4668,7 @@ const RECITERS = [
   {id:'ar.khaledhamdan',  name:'خالد حمدان',              style:'مرتّل — حفص',    emoji:'🎶', server:'mp3quran',  id2:'khaledhamdan'},
   {id:'ar.nabilrifa3i',   name:'نبيل الرفاعي',            style:'مرتّل — حفص',    emoji:'💎', server:'everyayah', subdir:'Nabil_Ar-Rifai_128kbps'},
   {id:'ar.yusufislamiy',  name:'يوسف الإسلامي',           style:'مرتّل',          emoji:'🌿', server:'mp3quran',  id2:'yusufislamiy'},
-  {id:'ar.tablawi',       name:'محمد محمود الطبلاوي',     style:'مجوّد — حفص',    emoji:'🔱', server:'everyayah', subdir:'Muhammad_Jibreel_128kbps'},
+  {id:'ar.tablawi',       name:'محمد محمود الطبلاوي',     style:'مجوّد — حفص',    emoji:'🔱', server:'mp3quran',  id2:'tablawi'},
   {id:'ar.muhammadjibril',name:'محمد جبريل',              style:'مرتّل — حفص',    emoji:'🌊', server:'everyayah', subdir:'Muhammad_Jibreel_128kbps'},
   {id:'ar.ali_hajjaj',    name:'علي حجاج السويسي',        style:'مرتّل — حفص',    emoji:'🏔️', server:'mp3quran',  id2:'alhajjaj'},
   {id:'ar.fares',         name:'فارس عباد',               style:'مرتّل — حفص',    emoji:'🎤', server:'everyayah', subdir:'Fares_Abbad_64kbps'},
@@ -4597,8 +4678,11 @@ const RECITERS = [
   {id:'ar.qaloon',        name:'رواية قالون',             style:'مرتّل — قالون',  emoji:'📋', server:'mp3quran',  id2:'qaloon'},
   {id:'ar.doori',         name:'رواية الدوري',            style:'مرتّل — الدوري', emoji:'📃', server:'mp3quran',  id2:'doori'},
   // ===== قراء السعودية =====
+  {id:'ar.saadghamdi',    name:'سعد الغامدي',             style:'مرتّل — حفص',    emoji:'🌵', server:'mp3quran',  id2:'ghamdi'},
+  {id:'ar.badrturki',     name:'بدر التركي',              style:'مرتّل — حفص',    emoji:'🌙', server:'mp3quran',  id2:'bdr'},
   {id:'ar.bandar',        name:'بندر بليلة',              style:'مرتّل — حفص',    emoji:'🕋', server:'everyayah', subdir:'BandarBalila_128kbps'},
   {id:'ar.wadi',          name:'أحمد الحواشي',            style:'مرتّل — حفص',    emoji:'🏜️', server:'mp3quran',  id2:'ahmed_al_hawashi'},
+  {id:'ar.raadkurdi',     name:'رعد محمد الكردي',         style:'مرتّل — حفص',    emoji:'🎙️', server:'mp3quran',  id2:'kurdi'},
   {id:'ar.alhusayni',     name:'الحسيني العزازي',         style:'مرتّل — حفص',    emoji:'🌻', server:'mp3quran',  id2:'alhusayni'},
   // ===== قراء مصر =====
   {id:'ar.seddiq',        name:'الشيخ الشحات محمد أنور',  style:'مجوّد',          emoji:'🎭', server:'mp3quran',  id2:'anwar_shat'},
@@ -4713,6 +4797,8 @@ function toggleSurahAudio() {
 // Build ordered list of fallback URLs for a surah+reciter
 function buildUrlList(surahId, reciter) {
   const n3 = String(surahId).padStart(3,'0');
+
+  // cdn.islamic.network editions (primary CDN with CORS support)
   const islamicEdition = {
     'ar.alafasy':            'ar.alafasy',
     'ar.abdurrahmaansudais': 'ar.abdurrahmaansudais',
@@ -4723,45 +4809,76 @@ function buildUrlList(surahId, reciter) {
     'ar.abdulbasitmurattal': 'ar.abdulbasitmurattal192',
     'ar.abdulbasitmujawwad': 'ar.abdulbasitmujawwad',
     'ar.shaatree':           'ar.shaatree128',
+    'ar.aymanswoaid':        'ar.aymanswoaid128',
     'ar.hanirifai':          'ar.hanirifai',
+    'ar.ibrahimakhdar':      'ar.ibrahimakhdar',
     'ar.fares':              'ar.fares',
     'ar.abdullahbasfar':     'ar.abdullahbasfar192',
     'ar.bandar':             'ar.bandar',
     'ar.parhizgar':          'ar.parhizgar',
-    'ar.aymanswoaid':        'ar.aymanswoaid128',
-  }[reciter.id] || 'ar.alafasy';
+    'ar.muhammadjibril':     'ar.muhammadjibreel',
+    'ar.nabilrifa3i':        'ar.nabilrifa3i',
+    'ar.saadghamdi':         'ar.saadalghamdi',
+    'ar.badrturki':          'ar.badrturki',
+    'ar.raadkurdi':          'ar.raadkurdi',
+    'ar.warsh':              'ar.husary',   // Husary reciter, warsh riwayah via mp3quran
+    'ar.walk':               'ar.walk',
+  }[reciter.id];
 
+  // mp3quran.net server paths (reliable secondary source)
   const mp3quranPath = {
     'ar.alafasy':            {s:'server8',  p:'alafasy'},
     'ar.abdurrahmaansudais': {s:'server7',  p:'sudais'},
     'ar.mahermuaiqly':       {s:'server12', p:'maher'},
     'ar.saoodshuraym':       {s:'server7',  p:'shuraym'},
-    'ar.minshawi':           {s:'server10', p:'minshawi'},
+    'ar.minshawi':           {s:'server10', p:'minshawi_mu'},
     'ar.husary':             {s:'server13', p:'husary'},
     'ar.abdulbasitmurattal': {s:'server7',  p:'basit'},
     'ar.abdulbasitmujawwad': {s:'server7',  p:'basitmujawwad'},
     'ar.shaatree':           {s:'server11', p:'shater'},
+    'ar.aymanswoaid':        {s:'server11', p:'ayman'},
     'ar.hanirifai':          {s:'server11', p:'hani_rifai'},
+    'ar.ibrahimakhdar':      {s:'server11', p:'ibrahimakhdar'},
+    'ar.khaledhamdan':       {s:'server6',  p:'khaledhamdan'},
+    'ar.nabilrifa3i':        {s:'server7',  p:'nabil'},
+    'ar.yusufislamiy':       {s:'server11', p:'yusufislamiy'},
+    'ar.saadghamdi':         {s:'server6',  p:'ghamdi'},
+    'ar.badrturki':          {s:'server11', p:'bdr'},
+    'ar.raadkurdi':          {s:'server6',  p:'kurdi'},
+    'ar.minshawi_mu':        {s:'server10', p:'minshawi'},
+    'ar.tablawi':            {s:'server10', p:'tablawi'},
+    'ar.muhammadjibril':     {s:'server8',  p:'muhammad_jibreel'},
+    'ar.ali_hajjaj':         {s:'server11', p:'alhajjaj'},
     'ar.fares':              {s:'server7',  p:'fares'},
     'ar.abdullahbasfar':     {s:'server7',  p:'basfar'},
-    'ar.bandar':             {s:'server11', p:'bandar'},
-    'ar.aymanswoaid':        {s:'server11', p:'ayman'},
-    'ar.ibrahimakhdar':      {s:'server11', p:'ibrahimakhdar'},
-    'ar.muhammadjibril':     {s:'server8',  p:'muhammad_jibreel'},
-    'ar.tablawi':            {s:'server10', p:'tablawi'},
-    'ar.nabilrifa3i':        {s:'server7',  p:'nabil'},
     'ar.warsh':              {s:'server12', p:'husary_warsh'},
+    'ar.qaloon':             {s:'server10', p:'qaloon'},
     'ar.doori':              {s:'server11', p:'alduri'},
+    'ar.bandar':             {s:'server11', p:'bandar'},
     'ar.wadi':               {s:'server11', p:'ahmed_al_hawashi'},
+    'ar.alhusayni':          {s:'server11', p:'alhusayni'},
+    'ar.seddiq':             {s:'server10', p:'anwar_shat'},
     'ar.ragheb':             {s:'server11', p:'ragheb'},
     'ar.parhizgar':          {s:'server10', p:'Parhizgar'},
+    'ar.walk':               {s:'server8',  p:'walk'},
   }[reciter.id] || {s:'server8', p:'alafasy'};
 
+  const mp3quranUrl = `https://${mp3quranPath.s}.mp3quran.net/${mp3quranPath.p}/${n3}.mp3`;
+
+  // For reciters only available on mp3quran, put it first
+  if(reciter.server === 'mp3quran') {
+    return [
+      mp3quranUrl,
+      ...(islamicEdition ? [`https://cdn.islamic.network/quran/audio-surah/128/${islamicEdition}/${surahId}.mp3`] : []),
+      `https://cdn.islamic.network/quran/audio-surah/128/ar.alafasy/${surahId}.mp3`,
+    ];
+  }
+
+  // For reciters on everyayah/islamic.network, try CDN first then mp3quran
   return [
-    `https://cdn.islamic.network/quran/audio-surah/128/${islamicEdition}/${surahId}.mp3`,
-    `https://${mp3quranPath.s}.mp3quran.net/${mp3quranPath.p}/${n3}.mp3`,
-    `https://cdn.islamic.network/quran/audio-surah/64/${islamicEdition}/${surahId}.mp3`,
-    // Universal fallback: Alafasy
+    ...(islamicEdition ? [`https://cdn.islamic.network/quran/audio-surah/128/${islamicEdition}/${surahId}.mp3`] : []),
+    mp3quranUrl,
+    ...(islamicEdition ? [`https://cdn.islamic.network/quran/audio-surah/64/${islamicEdition}/${surahId}.mp3`] : []),
     `https://cdn.islamic.network/quran/audio-surah/128/ar.alafasy/${surahId}.mp3`,
   ];
 }
@@ -4809,18 +4926,6 @@ function playAudio(surahId) {
     const el = new Audio();
     el.preload = 'auto';
 
-    el.oncanplay = () => {
-      audioObj = el;
-      attachHandlers();
-      el.play().catch(() => { el.onerror(); });
-    };
-
-    el.onerror = () => {
-      el.oncanplay = null;
-      el.onerror = null;
-      tryNextUrl();
-    };
-
     // Timeout: if no response in 8s, try next
     const timeout = setTimeout(() => {
       if(audioObj !== el) {
@@ -4836,6 +4941,13 @@ function playAudio(surahId) {
       audioObj = el;
       attachHandlers();
       el.play().catch(() => { tryNextUrl(); });
+    };
+
+    el.onerror = () => {
+      clearTimeout(timeout);
+      el.oncanplay = null;
+      el.onerror = null;
+      tryNextUrl();
     };
 
     el.src = url;
