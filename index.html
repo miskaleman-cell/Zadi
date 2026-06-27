@@ -934,6 +934,7 @@ input:focus,select:focus{border-color:var(--gold);}
 <div class="more-overlay" id="more-overlay" onclick="closeMoreSheet(event)">
   <div class="more-sheet">
     <div class="more-handle"></div>
+
     <div class="more-grid">
       <button class="more-item" onclick="showPage('seerahstories');closeMoreSheet()"><span class="more-item-icon" id="icon-seerah"></span><span class="more-item-label">السيرة والقصص</span></button>
       <button class="more-item" onclick="showPage('infobank');closeMoreSheet()"><span class="more-item-icon" id="icon-infobank"></span><span class="more-item-label">بنك المعلومات</span></button>
@@ -4690,23 +4691,25 @@ function applyIconPack(name) {
   currentIconPack = name;
   localStorage.setItem('zadi_icons', name);
   renderAllIcons();
-  // update buttons
+  // update settings page buttons
   ['outline','filled','emoji'].forEach(p => {
     const btn = document.getElementById('ipk-' + p);
-    if (!btn) return;
-    btn.style.borderColor = p === name ? 'var(--gold)' : 'transparent';
+    if (btn) btn.style.borderColor = p === name ? 'var(--gold)' : 'transparent';
+    // update more sheet buttons too
+    const msBtn = document.getElementById('ms-ipk-' + p);
+    if (msBtn) msBtn.style.borderColor = p === name ? 'var(--gold)' : 'transparent';
   });
 }
 
 // init icons on load
 document.addEventListener('DOMContentLoaded', () => {
   renderAllIcons();
-  // mark active pack button
-  const activeBtn = document.getElementById('ipk-' + currentIconPack);
-  if (activeBtn) activeBtn.style.borderColor = 'var(--gold)';
+  // mark active pack buttons (settings + more sheet)
   ['outline','filled','emoji'].forEach(p => {
     const btn = document.getElementById('ipk-' + p);
-    if (btn && p !== currentIconPack) btn.style.borderColor = 'transparent';
+    if (btn) btn.style.borderColor = p === currentIconPack ? 'var(--gold)' : 'transparent';
+    const msBtn = document.getElementById('ms-ipk-' + p);
+    if (msBtn) msBtn.style.borderColor = p === currentIconPack ? 'var(--gold)' : 'transparent';
   });
 });
 
