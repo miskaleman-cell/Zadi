@@ -9,7 +9,7 @@
  * قديمة عند إضافة ميزة جديدة، لأنه لا توجد قائمة ثابتة بما يجب أن يبقى صحيحاً.
  *
  * هذا الملف يحوّل تلك الفحوصات المتفرقة إلى مجموعة اختبارات حقيقية قابلة للتكرار:
- *   node tests/run-tests.js
+ *   node run-tests.js
  * يجب تشغيله بعد أي تعديل على index.html أو sw.js قبل اعتبار الجلسة منتهية.
  * exit code = 0 يعني نجاح كل الاختبارات، وأي رقم آخر يعني وجود عطل يجب إصلاحه.
  *
@@ -31,7 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
+const ROOT = __dirname;
 const INDEX_PATH = path.join(ROOT, 'index.html');
 const SW_PATH = path.join(ROOT, 'sw.js');
 
@@ -299,6 +299,52 @@ test('sw.js يستثني كاش الصوت (zadi-audio-v1) من حذف activate(
   const activateMatch = sw.match(/activate[\s\S]*?\}\);/);
   assert(activateMatch, 'تعذّر استخراج معالج activate');
   assert(/AUDIO_CACHE/.test(activateMatch[0]), 'AUDIO_CACHE غير مذكور داخل activate — قد يُحذف كاش الصوتيات المحمّلة عند كل تحديث نسخة!');
+});
+
+// ==================== 7) اختبارات خاصة بحزم الأيقونات (v72) ====================
+section('7) حزم الأيقونات القابلة للتبديل (v72)');
+
+const ICON_KEYS_EXPECTED = ['quran','athkar','prayer','tasbih','khatma','qibla','zakat','seerahstories','infobank','quiz','events','exchange','age','reminders','about','appsgrid','settings','duaoccasions','ramadan'];
+
+test('ICON_PACKS تحتوي الحزم الثلاث (emoji/outline/filled)', () => {
+  assert(/const ICON_PACKS\s*=\s*\{/.test(html), 'تعذّر العثور على تعريف ICON_PACKS');
+  ['emoji', 'outline', 'filled'].forEach((pack) => {
+    assert(new RegExp(`${pack}\\s*:\\s*\\{`).test(html), `حزمة "${pack}" غير موجودة داخل ICON_PACKS`);
+  });
+});
+
+test('كل حزمة تحتوي كل مفاتيح الأيقونات الـ19 المتوقعة', () => {
+  const packsBlockMatch = html.match(/const ICON_PACKS\s*=\s*\{[\s\S]*?\n\};/);
+  assert(packsBlockMatch, 'تعذّر استخراج جسم ICON_PACKS كاملاً');
+  const block = packsBlockMatch[0];
+  ICON_KEYS_EXPECTED.forEach((key) => {
+    const count = (block.match(new RegExp(`\\b${key}\\s*:`, 'g')) || []).length;
+    assert(count >= 3, `المفتاح "${key}" يُتوقع أن يظهر 3 مرات (مرة لكل حزمة)، وُجد ${count}`);
+  });
+});
+
+test('كل عناصر .dyn-icon[data-icon] في HTML لها مفتاح ضمن المفاتيح المتوقعة', () => {
+  const iconEls = html.match(/data-icon="([a-z]+)"/g) || [];
+  assert(iconEls.length > 0, 'لا توجد عناصر data-icon في الملف — هل حُذفت بنية التنقل بالخطأ؟');
+  iconEls.forEach((m) => {
+    const key = m.match(/data-icon="([a-z]+)"/)[1];
+    assert(ICON_KEYS_EXPECTED.includes(key), `مفتاح data-icon="${key}" غير معرّف في ICON_KEYS_EXPECTED ولا في ICON_PACKS`);
+  });
+});
+
+test('applyIconPack تحفظ الاختيار في localStorage وتُطبَّق تلقائياً عند تحميل الصفحة', () => {
+  assert(/function applyIconPack\(/.test(html), 'applyIconPack غير معرّفة');
+  assert(/localStorage\.setItem\('zadi_icon_pack'/.test(html), 'applyIconPack لا تحفظ الاختيار في localStorage');
+  assert(/applyIconPack\(getIconPack\(\)\)/.test(html), 'لا يوجد استدعاء applyIconPack(getIconPack()) عند تحميل الصفحة — الحزمة المحفوظة لن تُطبَّق تلقائياً');
+});
+
+test('لوحة اختيار حزمة الأيقونات (icon-pack-panel) موجودة وتحتوي 3 أزرار', () => {
+  assert(/id="icon-pack-panel"/.test(html), 'icon-pack-panel غير موجودة في HTML');
+  const panelMatch = html.match(/id="icon-pack-panel"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/);
+  assert(panelMatch, 'تعذّر استخراج جسم لوحة icon-pack-panel');
+  ['ip-emoji', 'ip-outline', 'ip-filled'].forEach((id) => {
+    assert(new RegExp(`id="${id}"`).test(html), `الزر ${id} غير موجود داخل لوحة اختيار الأيقونات`);
+  });
 });
 
 // ==================== الملخّص ====================
