@@ -165,6 +165,16 @@ header{
   transition:all 0.2s;
 }
 .lang-btn.active,.lang-btn:hover{background:var(--gold);color:#000;border-color:var(--gold);}
+/* Vibration settings */
+.vib-switch{position:relative;width:46px;height:26px;flex-shrink:0;}
+.vib-switch input{opacity:0;width:0;height:0;}
+.vib-switch-track{position:absolute;inset:0;background:var(--border);border-radius:20px;cursor:pointer;transition:background 0.2s;}
+.vib-switch-track:before{content:'';position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3);}
+.vib-switch input:checked + .vib-switch-track{background:var(--gold);}
+.vib-switch input:checked + .vib-switch-track:before{transform:translateX(20px);}
+.vib-intensity-btn{flex:1;padding:10px 6px;border-radius:10px;border:1.5px solid var(--border);background:var(--card2);color:var(--text2);font-family:var(--font-ar);font-size:0.78rem;cursor:pointer;transition:all 0.2s;font-weight:600;}
+.vib-intensity-btn.active{border-color:var(--gold);background:rgba(201,168,76,0.12);color:var(--gold);}
+.vib-intensity-btn:disabled{opacity:0.4;cursor:not-allowed;}
 /* Quran header elements */
 .qhdr-back{
   background:rgba(255,255,255,0.12);
@@ -2160,6 +2170,29 @@ input:focus,select:focus{border-color:var(--gold);}
       </button>
     </div>
 
+    <!-- Vibration -->
+    <div style="margin-bottom:20px;">
+      <div style="font-size:0.85rem;color:var(--gold2);font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">📳 الاهتزاز</div>
+      <div style="background:var(--card2);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px;">
+        <label style="display:flex;align-items:center;gap:12px;cursor:pointer;">
+          <span style="flex:1;text-align:right;">
+            <div style="font-weight:700;">تفعيل الاهتزاز</div>
+            <div style="font-size:0.75rem;color:var(--text3);margin-top:2px;">عند الضغط على التسبيح والأذكار</div>
+          </span>
+          <span class="vib-switch">
+            <input type="checkbox" id="vib-enabled-toggle" onchange="setVibrationEnabled(this.checked)">
+            <span class="vib-switch-track" onclick="document.getElementById('vib-enabled-toggle').click()"></span>
+          </span>
+        </label>
+        <div id="vib-intensity-row" style="display:flex;gap:8px;margin-top:14px;">
+          <button class="vib-intensity-btn" id="vib-int-light" onclick="setVibrationIntensity('light',this)">خفيف</button>
+          <button class="vib-intensity-btn" id="vib-int-medium" onclick="setVibrationIntensity('medium',this)">متوسط</button>
+          <button class="vib-intensity-btn" id="vib-int-strong" onclick="setVibrationIntensity('strong',this)">قوي</button>
+        </div>
+        <button onclick="vibrateLight()" style="width:100%;margin-top:12px;background:transparent;border:1px dashed var(--border);border-radius:10px;padding:9px;font-family:var(--font-ar);font-size:0.78rem;color:var(--text3);cursor:pointer;">🔔 تجربة الاهتزاز</button>
+      </div>
+    </div>
+
     <!-- Data -->
     <div>
       <div style="font-size:0.85rem;color:var(--gold2);font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">💾 البيانات</div>
@@ -2320,7 +2353,7 @@ function showPage(name){
   if(name==='infobank') loadInfobank();
   if(name==='quiz') loadQuizPage();
   if(name==='books') loadBooksPage();
-  if(name==='settings') updateSettingsAIProviderLabel();
+  if(name==='settings'){ updateSettingsAIProviderLabel(); initVibrationSettingsUI(); }
   // Scroll top
   window.scrollTo(0,0);
 }
@@ -3604,14 +3637,60 @@ function closeTafsir(){
 // Close tafsir on back button / swipe
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeTafsir(); });
 // ===== VIBRATION HELPER =====
+const VIB_INTENSITY_MULT = { light:0.6, medium:1, strong:1.7 };
+let vibrationSettings = { enabled:true, intensity:'medium' };
+(function loadVibrationSettings(){
+  try{
+    const raw = localStorage.getItem('zadi_vibration');
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(typeof parsed.enabled==='boolean') vibrationSettings.enabled = parsed.enabled;
+      if(VIB_INTENSITY_MULT[parsed.intensity]) vibrationSettings.intensity = parsed.intensity;
+    }
+  }catch(e){}
+})();
+function saveVibrationSettings(){
+  try{ localStorage.setItem('zadi_vibration', JSON.stringify(vibrationSettings)); }catch(e){}
+}
+function setVibrationEnabled(on){
+  vibrationSettings.enabled = !!on;
+  saveVibrationSettings();
+  const row = document.getElementById('vib-intensity-row');
+  if(row) row.querySelectorAll('.vib-intensity-btn').forEach(b=>b.disabled=!on);
+  if(on) vibrateLight();
+}
+function setVibrationIntensity(level,btn){
+  if(!VIB_INTENSITY_MULT[level]) return;
+  vibrationSettings.intensity = level;
+  saveVibrationSettings();
+  document.querySelectorAll('.vib-intensity-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  if(vibrationSettings.enabled) vibrateLight();
+}
+function initVibrationSettingsUI(){
+  const toggle = document.getElementById('vib-enabled-toggle');
+  if(toggle) toggle.checked = vibrationSettings.enabled;
+  const row = document.getElementById('vib-intensity-row');
+  if(row) row.querySelectorAll('.vib-intensity-btn').forEach(b=>{
+    b.disabled = !vibrationSettings.enabled;
+    b.classList.toggle('active', b.id==='vib-int-'+vibrationSettings.intensity);
+  });
+}
+// Scale a pattern (number or array of ms) by the user's chosen intensity
+function scaleVibPattern(pattern){
+  const mult = VIB_INTENSITY_MULT[vibrationSettings.intensity] || 1;
+  if(Array.isArray(pattern)) return pattern.map(ms=>Math.max(0, Math.round(ms*mult)));
+  return Math.max(0, Math.round(pattern*mult));
+}
 function vibrate(pattern){
-  try{ if(navigator.vibrate) navigator.vibrate(pattern); }
+  if(!vibrationSettings.enabled) return;
+  try{ if(navigator.vibrate) navigator.vibrate(scaleVibPattern(pattern)); }
   catch(e){}
 }
 // Short tap feedback
 function vibrateLight(){ vibrate(30); }
-// On every 100 in tasbih
-function vibrateMilestone(){ vibrate([60,40,60]); }
+// On every 100 in tasbih — a longer, more distinct pulse
+function vibrateMilestone(){ vibrate([90,60,90,60,90]); }
 // On dhikr/dua complete
 function vibrateComplete(){ vibrate([80,50,80,50,120]); }
 
