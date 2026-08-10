@@ -2063,7 +2063,7 @@ input:focus,select:focus{border-color:var(--gold);}
     <div style="font-size:3rem;">☽</div>
     <div class="about-logo">زادي</div>
     <div class="about-tagline" data-key="about_tag">رفيقك الإسلامي اليومي — أذكار، صلاة، زكاة، وأكثر</div>
-    <div class="about-version">النسخة 2.0</div>
+    <div class="about-version">النسخة 2.1</div>
   </div>
   <div class="card">
     <div class="card-title" data-key="features">مميزات التطبيق</div>
@@ -2214,6 +2214,30 @@ input:focus,select:focus{border-color:var(--gold);}
 </main>
 
 <script>
+// ==================== SAFE STORAGE (guards against quota errors, private-mode restrictions, etc.) ====================
+function zGetItem(key) {
+  try { return localStorage.getItem(key); }
+  catch(e) { console.warn('storage read failed:', key, e); return null; }
+}
+function zSetItem(key, value) {
+  try { localStorage.setItem(key, value); return true; }
+  catch(e) { console.warn('storage write failed:', key, e); return false; }
+}
+function zRemoveItem(key) {
+  try { localStorage.removeItem(key); return true; }
+  catch(e) { console.warn('storage remove failed:', key, e); return false; }
+}
+function zGetJSON(key, fallback) {
+  try {
+    const raw = zGetItem(key);
+    if (raw === null || raw === undefined) return fallback;
+    return JSON.parse(raw);
+  } catch(e) {
+    console.warn('storage parse failed:', key, e);
+    return fallback;
+  }
+}
+
 // ==================== I18N ====================
 const LANG = {
   ar: {
@@ -2355,11 +2379,11 @@ function showPage(name){
 let qData = null;        // Full quran data (loaded from API / cache)
 let qSurahs = [];        // Surah metadata
 let qCurrentSurah = 0;  // 1-based index
-let qBookmarks = JSON.parse(localStorage.getItem('zadi_q_bookmarks')||'{}');
-let qLastRead = JSON.parse(localStorage.getItem('zadi_q_lastread')||'null');
-let qWaypoint = JSON.parse(localStorage.getItem('zadi_q_waypoint')||'null');
-let qFontSize = parseFloat(localStorage.getItem('zadi_q_fontsize')||'1.6');
-let qLineH = parseFloat(localStorage.getItem('zadi_q_lineh')||'2.6');
+let qBookmarks = zGetJSON('zadi_q_bookmarks', {});
+let qLastRead = zGetJSON('zadi_q_lastread', null);
+let qWaypoint = zGetJSON('zadi_q_waypoint', null);
+let qFontSize = parseFloat(zGetItem('zadi_q_fontsize')||'1.6');
+let qLineH = parseFloat(zGetItem('zadi_q_lineh')||'2.6');
 
 // Surah metadata (built-in)
 const SURAH_META = [
@@ -2481,7 +2505,7 @@ const SURAH_META = [
 
 function initQuranPage() {
   // تهيئة وضع العرض
-  qViewMode = localStorage.getItem('zadi_q_view_mode') || 'verse';
+  qViewMode = zGetItem('zadi_q_view_mode') || 'verse';
   const vBtn = document.getElementById('qmode-btn-verse');
   const pBtn = document.getElementById('qmode-btn-page');
   if(vBtn) vBtn.classList.toggle('active', qViewMode === 'verse');
@@ -2547,14 +2571,14 @@ function filterSurahs() {
 // Fetch surah text from alquran.cloud (cached in localStorage)
 async function fetchSurahText(surahId) {
   const cacheKey = `zadi_q_surah_${surahId}`;
-  const cached = localStorage.getItem(cacheKey);
+  const cached = zGetItem(cacheKey);
   if(cached) return JSON.parse(cached);
   try {
     const res = await fetch(`https://api.alquran.cloud/v1/surah/${surahId}/quran-uthmani`);
     const data = await res.json();
     if(data.code===200){
       const verses = data.data.ayahs.map(a=>a.text);
-      localStorage.setItem(cacheKey, JSON.stringify(verses));
+      zSetItem(cacheKey, JSON.stringify(verses));
       return verses;
     }
   } catch(e) {}
@@ -2648,12 +2672,12 @@ function prevSurah() { if(qCurrentSurah>1) openSurah(qCurrentSurah-1); }
 function nextSurah() { if(qCurrentSurah<114) openSurah(qCurrentSurah+1); }
 
 // ==================== وضع الصفحة الكاملة ====================
-let qViewMode = localStorage.getItem('zadi_q_view_mode') || 'verse'; // 'verse' | 'page'
+let qViewMode = zGetItem('zadi_q_view_mode') || 'verse'; // 'verse' | 'page'
 let qCurrentPage = 1; // الصفحة الحالية (1-604)
 
 function setQuranViewMode(mode) {
   qViewMode = mode;
-  localStorage.setItem('zadi_q_view_mode', mode);
+  zSetItem('zadi_q_view_mode', mode);
   // تحديث أزرار الإعدادات
   document.getElementById('qmode-btn-verse')?.classList.toggle('active', mode === 'verse');
   document.getElementById('qmode-btn-page')?.classList.toggle('active', mode === 'page');
@@ -2701,7 +2725,7 @@ function surahToPage(surahId) {
 // جلب آيات صفحة كاملة من API
 async function fetchPageVerses(pageNum) {
   const cacheKey = `zadi_q_page_${pageNum}`;
-  const cached = localStorage.getItem(cacheKey);
+  const cached = zGetItem(cacheKey);
   if(cached) return JSON.parse(cached);
   try {
     const res = await fetch(`https://api.alquran.cloud/v1/page/${pageNum}/quran-uthmani`);
@@ -2715,7 +2739,7 @@ async function fetchPageVerses(pageNum) {
         juz: a.juz,
         page: a.page
       }));
-      localStorage.setItem(cacheKey, JSON.stringify(ayahs));
+      zSetItem(cacheKey, JSON.stringify(ayahs));
       return ayahs;
     }
   } catch(e) {}
@@ -2793,7 +2817,7 @@ function nextPage() { openPage(qCurrentPage + 1); }
 function saveLastRead(surahId, verseNum) {
   const meta = SURAH_META[surahId-1];
   qLastRead = { surahId, verseNum, surahName: meta.name };
-  localStorage.setItem('zadi_q_lastread', JSON.stringify(qLastRead));
+  zSetItem('zadi_q_lastread', JSON.stringify(qLastRead));
   updateLastReadBanner();
 }
 
@@ -2810,7 +2834,7 @@ function updateLastReadBanner() {
 function saveWaypoint(surahId, verseNum) {
   const meta = SURAH_META[surahId-1];
   qWaypoint = { surahId, verseNum, surahName: meta.name };
-  localStorage.setItem('zadi_q_waypoint', JSON.stringify(qWaypoint));
+  zSetItem('zadi_q_waypoint', JSON.stringify(qWaypoint));
   updateWaypointBanner();
   showToast('🔖 تم حفظ نقطة الوصول هنا');
 }
@@ -2819,7 +2843,7 @@ function saveWaypoint(surahId, verseNum) {
 function savePageWaypoint() {
   // الحصول على أول آية في الصفحة الحالية من cache
   const cacheKey = `zadi_q_page_${qCurrentPage}`;
-  const cached = localStorage.getItem(cacheKey);
+  const cached = zGetItem(cacheKey);
   let surahId = 1, verseNum = 1;
   if(cached) {
     const ayahs = JSON.parse(cached);
@@ -2827,7 +2851,7 @@ function savePageWaypoint() {
   }
   const meta = SURAH_META[surahId-1];
   qWaypoint = { surahId, verseNum, surahName: meta.name, page: qCurrentPage };
-  localStorage.setItem('zadi_q_waypoint', JSON.stringify(qWaypoint));
+  zSetItem('zadi_q_waypoint', JSON.stringify(qWaypoint));
   updateWaypointBanner();
   // تأثير بصري على الزر
   const btn = document.getElementById('q-page-bookmark-btn');
@@ -2876,7 +2900,7 @@ function toggleVerseBookmark(surahId, verseNum, btn) {
     btn.classList.add('bookmarked');
     btn.innerHTML = '🔖 محفوظة';
   }
-  localStorage.setItem('zadi_q_bookmarks', JSON.stringify(qBookmarks));
+  zSetItem('zadi_q_bookmarks', JSON.stringify(qBookmarks));
 }
 
 function toggleQuranBookmark() {
@@ -3139,12 +3163,12 @@ function applyQuranFont() {
 }
 function changeFontSize(d) {
   qFontSize = Math.min(3, Math.max(0.9, qFontSize + d));
-  localStorage.setItem('zadi_q_fontsize', qFontSize);
+  zSetItem('zadi_q_fontsize', qFontSize);
   applyQuranFont();
 }
 function changeLineHeight(d) {
   qLineH = Math.min(4.5, Math.max(1.5, qLineH + d));
-  localStorage.setItem('zadi_q_lineh', qLineH);
+  zSetItem('zadi_q_lineh', qLineH);
   applyQuranFont();
 }
 function openFontPanel() { document.getElementById('font-panel').classList.toggle('show'); }
@@ -3163,10 +3187,10 @@ function showToast(msg) {
 // Export / Import data
 function exportData() {
   const data = {
-    reminders: JSON.parse(localStorage.getItem('zadi_reminders')||'[]'),
-    bookmarks: JSON.parse(localStorage.getItem('zadi_q_bookmarks')||'{}'),
-    lastRead: JSON.parse(localStorage.getItem('zadi_q_lastread')||'null'),
-    waypoint: JSON.parse(localStorage.getItem('zadi_q_waypoint')||'null'),
+    reminders: zGetJSON('zadi_reminders', []),
+    bookmarks: zGetJSON('zadi_q_bookmarks', {}),
+    lastRead: zGetJSON('zadi_q_lastread', null),
+    waypoint: zGetJSON('zadi_q_waypoint', null),
     exported: new Date().toISOString()
   };
   const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
@@ -3184,10 +3208,10 @@ function importData() {
     r.onload = ev => {
       try {
         const d = JSON.parse(ev.target.result);
-        if(d.reminders) localStorage.setItem('zadi_reminders', JSON.stringify(d.reminders));
-        if(d.bookmarks) localStorage.setItem('zadi_q_bookmarks', JSON.stringify(d.bookmarks));
-        if(d.lastRead) localStorage.setItem('zadi_q_lastread', JSON.stringify(d.lastRead));
-        if(d.waypoint) localStorage.setItem('zadi_q_waypoint', JSON.stringify(d.waypoint));
+        if(d.reminders) zSetItem('zadi_reminders', JSON.stringify(d.reminders));
+        if(d.bookmarks) zSetItem('zadi_q_bookmarks', JSON.stringify(d.bookmarks));
+        if(d.lastRead) zSetItem('zadi_q_lastread', JSON.stringify(d.lastRead));
+        if(d.waypoint) zSetItem('zadi_q_waypoint', JSON.stringify(d.waypoint));
         showToast('✓ تم استيراد البيانات بنجاح');
         renderReminders();
       } catch(err) { alert('ملف غير صالح'); }
@@ -3582,7 +3606,7 @@ async function fetchTafsirSurah(surahId){
   if(tafsirCache[surahId]) return tafsirCache[surahId];
   // Check localStorage
   try{
-    const stored = localStorage.getItem(cacheKey);
+    const stored = zGetItem(cacheKey);
     if(stored){ tafsirCache[surahId]=JSON.parse(stored); return tafsirCache[surahId]; }
   }catch(e){}
   // Fetch from API - تفسير الميسر
@@ -3592,7 +3616,7 @@ async function fetchTafsirSurah(surahId){
     const data = await res.json();
     const texts = data.data.ayahs.map(a=>a.text);
     tafsirCache[surahId] = texts;
-    try{ localStorage.setItem(cacheKey, JSON.stringify(texts)); }catch(e){}
+    try{ zSetItem(cacheKey, JSON.stringify(texts)); }catch(e){}
     return texts;
   }catch(e){
     return null;
@@ -3634,7 +3658,7 @@ const VIB_INTENSITY_MULT = { light:0.6, medium:1, strong:1.7 };
 let vibrationSettings = { enabled:true, intensity:'medium' };
 (function loadVibrationSettings(){
   try{
-    const raw = localStorage.getItem('zadi_vibration');
+    const raw = zGetItem('zadi_vibration');
     if(raw){
       const parsed = JSON.parse(raw);
       if(typeof parsed.enabled==='boolean') vibrationSettings.enabled = parsed.enabled;
@@ -3643,7 +3667,7 @@ let vibrationSettings = { enabled:true, intensity:'medium' };
   }catch(e){}
 })();
 function saveVibrationSettings(){
-  try{ localStorage.setItem('zadi_vibration', JSON.stringify(vibrationSettings)); }catch(e){}
+  try{ zSetItem('zadi_vibration', JSON.stringify(vibrationSettings)); }catch(e){}
 }
 function setVibrationEnabled(on){
   vibrationSettings.enabled = !!on;
@@ -3864,7 +3888,7 @@ async function detectPrayerLocation(){
         }
 
         // حفظ في localStorage ليُستخدم عند الفتح التالي
-        localStorage.setItem('zadi_prayer_loc', JSON.stringify({
+        zSetItem('zadi_prayer_loc', JSON.stringify({
           times: dynamicPrayerTimes,
           name: prayerLocationName,
           date: new Date().toDateString(),
@@ -3891,7 +3915,7 @@ async function detectPrayerLocation(){
 
 function loadSavedPrayerLocation(){
   try {
-    const saved = localStorage.getItem('zadi_prayer_loc');
+    const saved = zGetItem('zadi_prayer_loc');
     if(!saved) return;
     const data = JSON.parse(saved);
     // استخدم المحفوظ فقط إذا كان من نفس اليوم
@@ -4613,10 +4637,31 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==================== REMINDERS ====================
-let reminders = JSON.parse(localStorage.getItem('zadi_reminders') || '[]');
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+let reminders = [];
+try {
+  reminders = zGetJSON('zadi_reminders', []);
+} catch(e) {
+  console.warn('reminders load error - using empty state', e);
+  reminders = [];
+}
 
 function saveReminders() {
-  localStorage.setItem('zadi_reminders', JSON.stringify(reminders));
+  try {
+    zSetItem('zadi_reminders', JSON.stringify(reminders));
+  } catch(e) {
+    console.warn('reminders save error', e);
+    alert('تعذر حفظ التذكيرات، قد تكون مساحة التخزين ممتلئة.');
+  }
 }
 
 function addReminder() {
@@ -4675,9 +4720,9 @@ function renderReminders() {
     return `<div class="reminder-item ${cls}">
       <div class="reminder-icon">${r.icon}</div>
       <div class="reminder-info">
-        <div class="reminder-title-text">${r.title} ${statusBadge}</div>
+        <div class="reminder-title-text">${escapeHtml(r.title)} ${statusBadge}</div>
         <div class="reminder-date">${dtStr}</div>
-        ${r.note ? `<div class="reminder-note">${r.note}</div>` : ''}
+        ${r.note ? `<div class="reminder-note">${escapeHtml(r.note)}</div>` : ''}
       </div>
       <div class="reminder-actions">
         ${!r.done ? `<button class="btn-done-r" onclick="doneReminder(${r.id})">✓</button>` : ''}
@@ -4707,7 +4752,7 @@ function checkRemindersOnOpen() {
       iconEl.textContent = r.icon;
       const dt = new Date(r.datetime);
       const dtStr = dt.toLocaleDateString('ar-SA', { weekday:'short', month:'short', day:'numeric' });
-      msgEl.innerHTML = `<strong>${r.title}</strong><br><span style="font-size:0.8rem;color:var(--text3);">${dtStr}</span>${r.note ? '<br>' + r.note : ''}`;
+      msgEl.innerHTML = `<strong>${escapeHtml(r.title)}</strong><br><span style="font-size:0.8rem;color:var(--text3);">${dtStr}</span>${r.note ? '<br>' + escapeHtml(r.note) : ''}`;
       modal.classList.add('show');
       modal._showNext = () => { idx++; showNext(); };
     }
@@ -4770,7 +4815,7 @@ const THEMES = ['green','ocean','purple','desert','rose','dark','orange'];
 
 function applyTheme(name) {
   document.documentElement.setAttribute('data-theme', name === 'green' ? '' : name);
-  localStorage.setItem('zadi_theme', name);
+  zSetItem('zadi_theme', name);
   THEMES.forEach(t => {
     const el = document.getElementById('th-' + t);
     if (el) el.classList.toggle('active', t === name);
@@ -4783,7 +4828,7 @@ function applyTheme(name) {
 
 function openThemePanel() {
   document.getElementById('theme-panel').classList.add('show');
-  const cur = localStorage.getItem('zadi_theme') || 'green';
+  const cur = zGetItem('zadi_theme') || 'green';
   THEMES.forEach(t => {
     const el = document.getElementById('th-' + t);
     if (el) el.classList.toggle('active', t === cur);
@@ -4798,7 +4843,7 @@ function closeThemePanel(e) {
 
 // تطبيق الثيم المحفوظ فور تحميل الصفحة
 (function() {
-  const saved = localStorage.getItem('zadi_theme');
+  const saved = zGetItem('zadi_theme');
   if (saved && saved !== 'green') {
     document.documentElement.setAttribute('data-theme', saved);
     const colors = {ocean:'#0a1628',purple:'#120d1f',desert:'#1a1208',rose:'#1f0d12',dark:'#0a0a0a',orange:'#1a0d00'};
@@ -6394,7 +6439,7 @@ function closeReaderPanel(e) {
 
 function selectReciter(id) {
   audioReciter = RECITERS.find(r=>r.id===id) || RECITERS[0];
-  localStorage.setItem('zadi_reciter', id);
+  zSetItem('zadi_reciter', id);
   document.getElementById('reader-panel').classList.remove('show');
   // Update player bar
   document.getElementById('ap-reader-name').textContent = audioReciter.name + ' — ' + audioReciter.style;
@@ -6858,7 +6903,7 @@ function playVerseAudio(surahId, verseNum) {
 
 // Load saved reciter on init
 (function(){
-  const saved = localStorage.getItem('zadi_reciter');
+  const saved = zGetItem('zadi_reciter');
   if(saved) {
     const found = RECITERS.find(r=>r.id===saved);
     if(found) audioReciter = found;
@@ -6965,12 +7010,12 @@ function seerahBack() {
 }
 
 function getSeerahBm() {
-  try { return JSON.parse(localStorage.getItem('zadi_seerah_bm') || 'null'); } catch(e) { return null; }
+  try { return JSON.parse(zGetItem('zadi_seerah_bm') || 'null'); } catch(e) { return null; }
 }
 
 function saveSeerahBm() {
   if (!seerahCurrentId) return;
-  localStorage.setItem('zadi_seerah_bm', JSON.stringify(seerahCurrentId));
+  zSetItem('zadi_seerah_bm', JSON.stringify(seerahCurrentId));
   updateSeerahBmBar();
   renderSeerahList(seerahActiveFilter);
   updateSeerahSaveBtn(seerahCurrentId);
@@ -8067,7 +8112,7 @@ function loadQuizPage() {
 
 function loadQuizStats() {
   try {
-    const s = JSON.parse(localStorage.getItem('zadi_quiz_stats') || '{}');
+    const s = zGetJSON('zadi_quiz_stats', {});
     quizState.score = s.score || 0;
     quizState.streak = s.streak || 0;
     quizState.total = s.total || 0;
@@ -8079,7 +8124,7 @@ function loadQuizStats() {
 
 function saveQuizStats() {
   try {
-    localStorage.setItem('zadi_quiz_stats', JSON.stringify({
+    zSetItem('zadi_quiz_stats', JSON.stringify({
       score: quizState.score, streak: quizState.streak,
       total: quizState.total, bestStreak: quizState.bestStreak,
       usedIds: quizState.usedIds.slice(-50)
@@ -8387,23 +8432,23 @@ const ZADI_API_KEY_STORAGE = 'zadi_claude_api_key';
 const ZADI_GEMINI_KEY_STORAGE = 'zadi_gemini_api_key';
 
 function getAiProvider() {
-  return localStorage.getItem(ZADI_PROVIDER_STORAGE) || 'claude';
+  return zGetItem(ZADI_PROVIDER_STORAGE) || 'claude';
 }
 
 function setAiProvider(provider) {
-  localStorage.setItem(ZADI_PROVIDER_STORAGE, provider);
+  zSetItem(ZADI_PROVIDER_STORAGE, provider);
 }
 
 function getApiKey(provider) {
   provider = provider || getAiProvider();
-  if (provider === 'gemini') return localStorage.getItem(ZADI_GEMINI_KEY_STORAGE) || '';
-  return localStorage.getItem(ZADI_API_KEY_STORAGE) || '';
+  if (provider === 'gemini') return zGetItem(ZADI_GEMINI_KEY_STORAGE) || '';
+  return zGetItem(ZADI_API_KEY_STORAGE) || '';
 }
 
 function setApiKey(key, provider) {
   provider = provider || getAiProvider();
-  if (provider === 'gemini') localStorage.setItem(ZADI_GEMINI_KEY_STORAGE, key.trim());
-  else localStorage.setItem(ZADI_API_KEY_STORAGE, key.trim());
+  if (provider === 'gemini') zSetItem(ZADI_GEMINI_KEY_STORAGE, key.trim());
+  else zSetItem(ZADI_API_KEY_STORAGE, key.trim());
 }
 
 function showApiKeyModal(onSuccess) {
@@ -8555,7 +8600,7 @@ async function anthropicApiFetch(prompt, maxTokens, apiKey) {
   });
 
   if (response.status === 401) {
-    localStorage.removeItem(ZADI_API_KEY_STORAGE);
+    zRemoveItem(ZADI_API_KEY_STORAGE);
     throw new Error('مفتاح API غير صحيح، يرجى إدخاله مجدداً');
   }
 
@@ -8579,7 +8624,7 @@ async function geminiApiFetch(prompt, maxTokens, apiKey) {
     const errData = await response.json().catch(() => null);
     const msg = errData?.error?.message || '';
     if (/api key|API_KEY_INVALID|permission/i.test(msg) || response.status !== 400) {
-      localStorage.removeItem(ZADI_GEMINI_KEY_STORAGE);
+      zRemoveItem(ZADI_GEMINI_KEY_STORAGE);
       throw new Error('مفتاح Gemini غير صحيح، يرجى إدخاله مجدداً');
     }
     throw new Error(msg || 'خطأ في API');
@@ -8596,7 +8641,7 @@ let bkState = {
   currentBook: null,
   currentChapter: null,
   loadedHadiths: [],
-  savedHadiths: JSON.parse(localStorage.getItem('zadi_hadith_saved') || '[]'),
+  savedHadiths: zGetJSON('zadi_hadith_saved', []),
   activeTab: 'chapters',
   searchResults: null,
   hadithPage: 0,
@@ -8604,7 +8649,7 @@ let bkState = {
 };
 
 function saveBkState() {
-  localStorage.setItem('zadi_hadith_saved', JSON.stringify(bkState.savedHadiths));
+  zSetItem('zadi_hadith_saved', JSON.stringify(bkState.savedHadiths));
 }
 
 function loadBooksPage() {

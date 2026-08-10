@@ -1,7 +1,7 @@
 // ==================== Service Worker - زادي ====================
 // استراتيجية: Cache First للأصول الثابتة، Network First مع fallback للبيانات الديناميكية (أوقات الصلاة، أسعار الصرف)
 
-const CACHE_VERSION = 'zadi-v1';
+const CACHE_VERSION = 'zadi-v2.1';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 const STATIC_ASSETS = [
