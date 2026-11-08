@@ -1,40 +1,22 @@
 {
-  "name": "زادي - رفيقك الإسلامي",
-  "short_name": "زادي",
-  "description": "زادي - تطبيق إسلامي شامل للأذكار والصلاة والزكاة وأوقات الصلاة والمناسبات الإسلامية",
+  "name": "Beydun Agriculture System",
+  "short_name": "Beydun Agro",
+  "description": "نظام إدارة مخزون الأدوية الزراعية",
   "start_url": "./index.html",
   "scope": "./",
+  "id": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0d1f0d",
-  "theme_color": "#1a2e1a",
+  "background_color": "#1B5E20",
+  "theme_color": "#2E7D32",
   "lang": "ar",
   "dir": "rtl",
-  "categories": ["lifestyle", "education", "religion"],
   "icons": [
-    {
-      "src": "./icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./icon-192-maskable.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "./icon-512-maskable.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
-  ]
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "categories": ["business", "productivity"],
+  "prefer_related_applications": false
 }
