@@ -1,7 +1,7 @@
-// Service Worker - زادي | v2.0.39
+// Service Worker - زادي | v2.0.55
 // Static assets: cache-first. Quran API: network-first with successful-response fallback.
 // Volatile APIs (prayer times, exchange rates, geocoding): never persist in cache.
-const CACHE_VERSION = 'zadi-v2-0-39';
+const CACHE_VERSION = 'zadi-v2-0-55';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const STATIC_ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
